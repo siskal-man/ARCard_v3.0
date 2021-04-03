@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+<!-- three.js library -->
+<script src='./JS/examples/vendor/three.js/build/three.min.js'></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<link rel="stylesheet" href="./style.css">
+
+<!-- ar.js -->
+<script src="./JS/build/ar.js"></script>
+<script>THREEx.ArToolkitContext.baseURL = './'</script>
+
+<body style='margin: 0px; width: 100%; height: 100%; overflow: hidden; font-family: Monospace;'>
+	<div id='link' style='position: absolute; top: 10px; width:100%; text-align: center; z-index: 1;'>
+	
+
+	<div class="section">
+		<div class="menu-block">
+			<a href="https://web.telegram.org/#/im?p=@Guchiev_Murat" target="blank" class="fa fa-exclamation"></a>
+			<a href="https://www.instagram.com/tkgrozny/" target="blank" class="fa fa-instagram"></a>
+  		</div>
+	</div>
+
+	<img id="logo" src="./images/augmented-reality.svg" alt="AR">
+	<video id='video' controls width="640" height="420" loop="loop">
+		<source type="video/mp4" src="./videos/AR презентация.mp4">
+	</video>
+	<script>
+	//////////////////////////////////////////////////////////////////////////////////
+	//		Init
+	//////////////////////////////////////////////////////////////////////////////////
+
+	// init renderer
+	var start_animation_flag = false;
+	var clicked = 0;
+	var renderer	= new THREE.WebGLRenderer({
+		antialias: true,
+		alpha: true,
+		antialias: true,
+	});
+	//renderer.setClearColor(new THREE.Color('lightgrey'), 0);
+	renderer.setSize( window.innerWidth, window.innerHeight );
+	renderer.domElement.style.position = 'absolute'
+	renderer.domElement.style.top = '0px'
+	renderer.domElement.style.left = '0px'
+	document.body.appendChild( renderer.domElement );
+
+	renderer.domElement.addEventListener('click', function(){
+		video.play();
+	});
+
+	// array of functions for the rendering loop
+	var onRenderFcts= [];
+
+	// init scene and camera
+	var scene	= new THREE.Scene();
+
+	//////////////////////////////////////////////////////////////////////////////////
+	//		Initialize a basic camera
+	//////////////////////////////////////////////////////////////////////////////////
+
+	// Create a camera
+	var camera = new THREE.Camera();
+	scene.add(camera);
+
+	////////////////////////////////////////////////////////////////////////////////
+	//          handle arToolkitSource
+	////////////////////////////////////////////////////////////////////////////////
+
+	var arToolkitSource = new THREEx.ArToolkitSource({
+		// to read from the webcam
+		sourceType : 'webcam',
+
+		// // to read from an image
+		// sourceType : 'image',
+		// sourceUrl : THREEx.ArToolkitContext.baseURL + '../data/images/img.jpg',
+
+		// to read from a video
+		// sourceType : 'video',
+		// sourceUrl : THREEx.ArToolkitContext.baseURL + '../data/videos/headtracking.mp4',
+	})
+
+	arToolkitSource.init(function onReady(){
+        setTimeout(() => {
+            onResize()
+        }, 200);
+	})
+
+	// handle resize
+	window.addEventListener('resize', function(){
+		onResize()
+    })
+
+	function onResize(){
+		arToolkitSource.onResizeElement()
+		arToolkitSource.copyElementSizeTo(renderer.domElement)
+		if( arToolkitContext.arController !== null ){
+			arToolkitSource.copyElementSizeTo(arToolkitContext.arController.canvas)
+		}
+	}
+	////////////////////////////////////////////////////////////////////////////////
+	//          initialize arToolkitContext
+	////////////////////////////////////////////////////////////////////////////////
+
+
+	// create atToolkitContext
+	var arToolkitContext = new THREEx.ArToolkitContext({
+		cameraParametersUrl: THREEx.ArToolkitContext.baseURL + 'JS/data/data/camera_para.dat',
+		detectionMode: 'mono',
+	})
+	// initialize it
+	arToolkitContext.init(function onCompleted(){
+		// copy projection matrix to camera
+		camera.projectionMatrix.copy( arToolkitContext.getProjectionMatrix() );
+	})
+
+	// update artoolkit on every frame
+	onRenderFcts.push(function(){
+		if( arToolkitSource.ready === false )	return
+
+		arToolkitContext.update( arToolkitSource.domElement )
+
+		// update scene.visible if the marker is seen
+		scene.visible = camera.visible
+	})
+
+	////////////////////////////////////////////////////////////////////////////////
+	//          Create a ArMarkerControls
+	////////////////////////////////////////////////////////////////////////////////
+
+	// init controls for camera
+	var markerControls = new THREEx.ArMarkerControls(arToolkitContext, camera, {
+		type : 'pattern',
+		patternUrl : THREEx.ArToolkitContext.baseURL + 'JS/data/data/patt.arjs',
+		// patternUrl : THREEx.ArToolkitContext.baseURL + '../data/data/patt.kanji',
+		// as we controls the camera, set changeMatrixMode: 'cameraTransformMatrix'
+		changeMatrixMode: 'cameraTransformMatrix'
+	})
+	// as we do changeMatrixMode: 'cameraTransformMatrix', start with invisible scene
+	scene.visible = false
+
+	//////////////////////////////////////////////////////////////////////////////////
+	//		add an object in the scene
+	//////////////////////////////////////////////////////////////////////////////////
+
+	// add a torus knot
+
+	const video = document.getElementById( 'video' );
+
+	const video_geometry = new THREE.PlaneGeometry( 1.5, 1.5 );
+	const video_texture = new THREE.VideoTexture( video );
+	const video_material = new THREE.MeshBasicMaterial( { map: video_texture } );
+
+	const video_mesh = new THREE.Mesh( video_geometry, video_material );
+
+	video_mesh.rotation.x = -1.5708;
+	video_mesh.position.y = -0.06;
+
+	scene.add( video_mesh );
+
+
+	var logo_geometry = new THREE.PlaneGeometry(1, 1);
+	var logo_texture = new THREE.TextureLoader();
+	var logo_material = new THREE.MeshBasicMaterial({
+		map: logo_texture.load('./images/camera.png'),
+		side: THREE.DoubleSide
+	});
+
+	var logo = new THREE.Mesh(logo_geometry, logo_material);
+
+	//logo.position.y = -1.74533;
+	logo.position.z = -1.5708;
+	logo.rotation.x = -1.5708;
+
+
+	scene.add(logo);
+	
+	//////////////////////////////////////////////////////////////////////////////////
+	//		render the whole thing on the page
+	//////////////////////////////////////////////////////////////////////////////////
+
+	// render the scene
+	onRenderFcts.push(function(){
+		renderer.render( scene, camera );
+	});
+
+	function resizeRendererToDisplaySize(renderer) {
+		const canvas = renderer.domElement;
+		const width = canvas.clientWidth;
+		const height = canvas.clientHeight;
+		const needResize = canvas.width !== width || canvas.height !== height;
+		if (needResize) {
+		  renderer.setSize(width, height, false);
+		}
+		return needResize;
+	  }
+	// run the rendering loop
+	var lastTimeMsec= null
+	requestAnimationFrame(function animate(nowMsec){
+		// keep looping
+		requestAnimationFrame( animate );
+		// measure time
+		lastTimeMsec	= lastTimeMsec || nowMsec-10000/60
+		var deltaMsec	= Math.min(200, nowMsec - lastTimeMsec)
+		lastTimeMsec	= nowMsec
+		// call each update function
+		if (resizeRendererToDisplaySize(renderer)) {
+			const canvas = renderer.domElement;
+			camera.aspect = canvas.clientWidth / canvas.clientHeight;
+			camera.updateProjectionMatrix();
+		  }	
+
+		onRenderFcts.forEach(function(onRenderFct){
+			onRenderFct(deltaMsec/1000, nowMsec/1000)
+		})
+	})
+</script>
+</body>
